@@ -2,7 +2,7 @@ library(data.table)
 library(DescTools)
 library(swfscMisc)
 
-install.packages("DescTools")
+#install.packages("DescTools")
 
 location <- 'D:\\Demyd\\Personal\\R\\kaggle\\'
 filename <- 'application_test.csv'
@@ -20,13 +20,20 @@ mean_summary <- as.data.table(rbind(apply(data_vars, 2, mean, na.rm = TRUE), app
 mean_summary <- cbind(item = c('Arithmetic Mean', 'Geometric Mean', 'Harmonic Mean'), mean_summary)
 mean_summary[1, 4] <- mean(data_vars$AMT_ANNUITY[!is.na(data_vars$AMT_ANNUITY)], na.rm = TRUE)
 
-mode_median <- as.data.table(rbind(apply(data_vars, 2, Mode, na.rm = FALSE), apply(data_vars, 2, median, na.rm = FALSE)))
+mode_median <- as.data.table(rbind(apply(data_vars, 2, Mode, na.rm = TRUE), apply(data_vars, 2, median, na.rm = TRUE)))
 mode_median <- cbind(item = c('mode', 'median'), mode_median)
 mode_median[1, 4] <- median(data_vars$AMT_ANNUITY[!is.na(data_vars$AMT_ANNUITY)], na.rm = TRUE)
 
 am_mode <- (mean_summary[1, ..vars] / mode_median[1, ..vars])
 am_median <- (mean_summary[1, ..vars] / mode_median[1, ..vars])
 
+min_max <- as.data.table(rbind(apply(data_vars, 2, min, na.rm = TRUE), apply(data_vars, 2, max, na.rm = TRUE)))
+
+quantile_step <- 0.1
+quantile_start <- quantile(data_vars$AMT_INCOME_TOTAL, probs = seq(0, 1, quantile_step), na.rm = FALSE, names = TRUE)[1:(1/quantile_step)]
+quantile_end <- quantile(data_vars$AMT_INCOME_TOTAL, probs = seq(0, 1, quantile_step), na.rm = FALSE, names = TRUE)[2:(length(quantile_start) + 1)]
+quantile_summary <- rbind(quantile_start, quantile_end)
+colnames(quantile_summary) <- paste((1:dim(quantile_summary)[2])*10, '%', sep ="")
 
 boxplot(data_vars$AMT_CREDIT,
         main="Different boxplots per var",
@@ -34,11 +41,21 @@ boxplot(data_vars$AMT_CREDIT,
         border="brown"
 )
 
+#variance
+range <- min_max[2] - min_max[1]
+d <- data_vars$AMT_INCOME_TOTAL - mean_summary$AMT_INCOME_TOTAL #[1, ..vars]
 
+qty <- dim(data_vars)[1]
+d <- apply(as.data.table(vars), 1,
+            function(x){
+                        sum(abs(data_vars[, ..x] -  unlist(mean_summary[1,..x])))/qty
+                       }
+           )
 
+x <- vars[1]
+sum(abs(data_vars[,..x] - unlist(rep(mean_summary[1,..x],step))))
 
-median(data_vars$AMT_ANNUITY, na.rm = TRUE)
+sum(abs(data_vars[,..x] - unlist(mean_summary[1,..x])))/step
 
-data_vars$AMT_ANNUITY[is.na(data_vars$AMT_ANNUITY)]
-
-
+class(data_vars[, ..x])  
+class(mean_summary[, ..x])
