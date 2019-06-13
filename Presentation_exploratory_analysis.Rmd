@@ -1,20 +1,114 @@
 ---
-title: "R Notebook"
+title: "Basic Concepts of Exploratory Analysis"
 output:
+  html_document:
+    df_print: paged
   html_notebook: default
   pdf_document: default
 ---
+This R Notebook file is designated to provide all necessary calculations used in Power point Presentation.
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+### 1. Preprocessing
+Loading of packages (the output is hidden)
 
-```{r}
-plot(cars)
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+# load packages required
+library(data.table)
+library(DescTools)
+library(swfscMisc)
+
+```
+Loading of initial variables
+```{r cache = TRUE}
+# path to file location ()
+location <- 'D:\\Demyd\\Personal\\R\\kaggle\\' # enter your path to files required. 
+filename <- 'application_test.csv'
+# load initial data
+data_all <- data.table(read.csv(paste(location, filename, sep = "")))
+# select variables used in presentation
+vars <- c('AMT_INCOME_TOTAL',	'AMT_CREDIT',	'AMT_ANNUITY',	'AMT_GOODS_PRICE',	'REGION_POPULATION_RELATIVE', 'HOUR_APPR_PROCESS_START')
+data_vars <- data_all[, ..vars]
+
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+### 2. Mean calculations
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+``` {r cache = TRUE}
+# user's functions to calculate Geometric Mean and Harmonic Mean
+gm <- function(x){  x <- x[!is.na(x)]; exp(mean(log(x)))} #Geometric Mean https://www.r-bloggers.com/r-geometric-mean/
+hm <- function(x){harmonic.mean(x, na.rm=TRUE)} #Harmonic Mean https://www.r-bloggers.com/geometric-and-harmonic-means-in-r/
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+# calculations of different mean types (Arithmetic, Geometric and Harmonic Means - AM, GM, HM)
+mean_summary <- as.data.table(rbind(apply(data_vars, 2, mean, na.rm = TRUE), apply(data_vars, 2, gm), apply(data_vars, 2, hm)))
+mean_summary <- cbind(item = c('Arithmetic Mean', 'Geometric Mean', 'Harmonic Mean'), mean_summary)
+mean_summary[1, 4] <- mean(data_vars$AMT_ANNUITY[!is.na(data_vars$AMT_ANNUITY)], na.rm = TRUE)
+
+
+# calculation of mode and median
+mode_median <- as.data.table(rbind(apply(data_vars, 2, Mode, na.rm = TRUE), apply(data_vars, 2, median, na.rm = TRUE)))
+mode_median <- cbind(item = c('mode', 'median'), mode_median)
+mode_median[1, 4] <- median(data_vars$AMT_ANNUITY[!is.na(data_vars$AMT_ANNUITY)], na.rm = TRUE)
+
+# calculation of ration AM to Mode/Median
+am_mode <- cbind(item = 'AM/Mode', mean_summary[1, ..vars] / mode_median[1, ..vars])
+am_median <- cbind(item = 'AM/Median', mean_summary[1, ..vars] / mode_median[1, ..vars])
+
+# min and max values
+min_max <- as.data.table(rbind(apply(data_vars, 2, min, na.rm = TRUE), apply(data_vars, 2, max, na.rm = TRUE)))
+min_max <- cbind(item = c('min', 'max'), min_max)
+
+# summary of Mean, Mode and Median
+Overall_Mean_Summary <- rbind(mean_summary, mode_median, am_mode, am_median, min_max)
+print(Overall_Mean_Summary)
+
+```
+### 3. Quantiles and Boxplot
+
+```{r}
+# quantile step within the range 0..1
+quantile_step <- 0.1
+quantile_start <- quantile(data_vars$AMT_INCOME_TOTAL, probs = seq(0, 1, quantile_step), na.rm = FALSE, names = TRUE)[1:(1/quantile_step)]
+quantile_end <- quantile(data_vars$AMT_INCOME_TOTAL, probs = seq(0, 1, quantile_step), na.rm = FALSE, names = TRUE)[2:(length(quantile_start) + 1)]
+quantile_summary <- rbind(quantile_start, quantile_end)
+colnames(quantile_summary) <- paste((1:dim(quantile_summary)[2])*10, '%', sep ="")
+print(quantile_summary)
+
+# make a boxplot
+boxplot(data_vars$AMT_CREDIT,
+        main="boxplot per var",
+        col="orange",
+        border="brown"
+)
+#dev.off()
+
+```
+### 4. Variance and Variance ratios
+
+```{r cache = TRUE}
+qty <- dim(data_vars)[1]
+
+# Variance indicators
+range <- min_max[2, ..vars] - min_max[1, ..vars]
+
+d <- as.data.table(t(apply(as.data.table(vars), 1, function(x){sum(abs(data_vars[as.vector(!is.na(data_vars[, ..x])), ..x] - unlist(mean_summary[1,..x]))) / sum(!is.na(data_vars[, ..x]))})))
+colnames(d) <- vars
+
+stanDev <- as.data.table(t(apply(as.data.table(vars), 1, function(x){sd(unlist(data_vars[as.vector(!is.na(data_vars[, ..x])), ..x]))})))
+colnames(stanDev) <- vars
+
+
+#Variance ratios (multiplied by 100)
+Oscillator_ratio <- (range/mean_summary[1, ..vars]) * 100
+Linear_variance_ratio <- (d/mean_summary[1, ..vars]) * 100
+Variance_ratio <- (stanDev/mean_summary[1, ..vars]) * 100
+
+Overall_Variance_Summary <- cbind(c('Range', 'Average Linear_variance', 'Standard Deviation'), rbind(range, d, stanDev))
+Overall_Variance_ratios_Summary <- cbind(c('Oscillator_ratio', 'Linear_variance_ratio', 'Variance_ratio'), rbind(Oscillator_ratio, Linear_variance_ratio, Variance_ratio))
+
+Overall_Variance_Summary <- rbind(Overall_Variance_Summary, Overall_Variance_ratios_Summary)
+colnames(Overall_Variance_Summary)[1] <- 'item'
+print(Overall_Variance_Summary)
+
+
+```
